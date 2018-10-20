@@ -1,0 +1,3 @@
+int32 control_mode # 0: position, 1: velocity, 2: displacement
+int32 setPoint
+---

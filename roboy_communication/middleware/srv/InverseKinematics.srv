@@ -1,0 +1,6 @@
+geometry_msgs/Pose pose
+---
+# these are the resulting joint angles from inverse kinematics in degrees
+float64[] angles
+# or the trajectory
+moveit_msgs/RobotTrajectory trajectory
