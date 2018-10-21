@@ -1,0 +1,52 @@
+<launch>
+
+    <arg name="use_map_server" default="False"/>
+    <arg name="no_odom" default="True"/>
+    <arg name="fake_laser" default="True"/>
+    <arg name="use_teb" default="False"/>
+
+    <group if="$(arg use_map_server)">
+        <node pkg="map_server" type="map_server" respawn="true" name="map_server" args="$(find robike_2d_nav)/maps/test_map.yaml"/>
+    </group>
+
+    <group unless="$(arg fake_laser)">
+        <include file="$(find sick_tim)/launch/sick_tim551_2050001.launch"/>
+    </group>
+
+    <group if="$(arg no_odom)">
+        <include file="$(find robike_bringup)/launch/tf_close.launch" />
+        <node pkg="fake_localization" type="fake_localization" respawn="true" name="fake_localization" />
+    </group>
+
+    <node pkg="robike_2d_nav" type="robike_odom_node" name="odom_node" output="screen"/>
+    <include file="$(find robike_bringup)/launch/tf_bringup.launch" />
+
+    <!--- Run AMCL todo: figure out which amcl to use instead of omni-directional-->
+    <!--- <include file="$(find amcl)/examples/amcl_omni.launch" />-->
+
+    <group unless="$(arg use_teb)">
+        <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+            <rosparam file="$(find robike_2d_nav)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+            <rosparam file="$(find robike_2d_nav)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+            <rosparam file="$(find robike_2d_nav)/config/local_costmap_params.yaml" command="load" />
+            <rosparam file="$(find robike_2d_nav)/config/global_costmap_params.yaml" command="load" />
+            <rosparam file="$(find robike_2d_nav)/config/base_local_planner_params.yaml" command="load" />
+            <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+        </node>
+    </group>
+    <group if="$(arg use_teb)">
+        <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+            <rosparam file="$(find robike_2d_nav)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+            <rosparam file="$(find robike_2d_nav)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+            <rosparam file="$(find robike_2d_nav)/config/local_costmap_params.yaml" command="load" />
+            <rosparam file="$(find robike_2d_nav)/config/global_costmap_params.yaml" command="load" />
+            <rosparam file="$(find robike_2d_nav)/config/teb_local_planner_params.yaml" command="load" />
+            <rosparam file="$(find robike_2d_nav)/config/costmap_converter_params.yaml" command="load" />
+            <param name="base_global_planner" value="teb_local_planner/TebLocalPlannerROS"/>
+            <param name="controller_frequency" value="5.0" />
+            <param name="controller_patience" value="15.0" />
+        </node>
+    </group>
+
+
+</launch> 

@@ -1,0 +1,5 @@
+<launch>
+    <param name="safety_margin" value="1.0"/>
+    <include file="$(find cob_leg_detection)/launch/leg_detector.launch" />
+    <node pkg="robike_2d_nav" type="emergency_stop_people.py" name="emergency_stop_people" output="screen"/>
+</launch>

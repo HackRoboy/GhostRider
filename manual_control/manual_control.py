@@ -1,6 +1,6 @@
 import curses
 import rospy
-from std_msgs import Int32
+from std_msgs.msg import String
 
 
 class BikeProxy:
@@ -8,7 +8,7 @@ class BikeProxy:
         self._steering_direction = 0
         self._speed = 0
         rospy.init_node("manual_input_node")
-        self._pub = rospy.Publisher(control_topic_name, Int32, queue_size=10)
+        self._pub = rospy.Publisher(control_topic_name, String, queue_size=10)
 
     def turn_left(self):
         self._steering_direction -= 100
@@ -57,8 +57,8 @@ def input_loop(win):
             win.addstr("Detected key:")
             win.addstr(str(key))
             map_action(str(key), bike)
-            if key == os.linesep:
-                break
+            if str(key) == "q":
+                return
         except Exception:
             pass
 

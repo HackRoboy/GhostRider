@@ -1,0 +1,22 @@
+<launch>
+    <arg name="scan_topic" default="/scan"/>
+    <arg name="obstacles_topic" default="/laser_obstacles"/>
+    <arg name="debug" default="false"/>
+    <arg name="use_nodelet" default="false"/>
+    <arg name="nodelet_manager" default=""/>
+    <arg name="vehicle" default="cc2017_car"/>
+    <arg name="output" default="screen" />
+
+
+    <arg if="$(arg debug)" name="launch-prefix" value="gdb -ex run --args"/>
+    <arg unless="$(arg debug)" name="launch-prefix" value=""/>
+
+    <group unless="$(arg use_nodelet)">
+        <node name="laserscan_obstacle_generator" pkg="laserscan_obstacle_generator" type="laserscan_obstacle_generator_node" respawn="false" output="$(arg output)" launch-prefix="$(arg launch-prefix)">
+            <remap from="scan_in" to="$(arg scan_topic)"/>
+            <remap from="obstacles_out" to="$(arg obstacles_topic)"/>
+        </node>
+    </group>
+
+    <!--todo: implement nodelet -->
+</launch>
