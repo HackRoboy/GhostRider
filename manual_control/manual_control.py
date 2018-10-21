@@ -1,6 +1,6 @@
 import curses
 import rospy
-from std_msgs.msgs import Int32
+from std_msgs import Int32
 
 
 class BikeProxy:
