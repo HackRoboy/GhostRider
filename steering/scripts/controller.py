@@ -1,104 +1,55 @@
 #!/usr/bin/env python
 
 import rospy
+import tf
 from std_msgs.msg import String
-from roboy_communication_middleware.msg import MotorCommand, MotorStatus
-from roboy_communication_middleware.srv import ControlMode
-
-DUMMY_INIT_POS = 0
-
-LEFT_MOTOR_ID = 1
-LEFT_MOTOR_INIT_POS = 0
-LEFT_MOTOR_DELTA_PULL = 50000
-LEFT_MOTOR_DELTA_RELEASE = -50000
-
-RIGHT_MOTOR_ID = 2
-RIGHT_MOTOR_INIT_POS = 0
-RIGHT_MOTOR_DELTA_PULL = 50000
-RIGHT_MOTOR_DELTA_RELEASE = -50000
-
-MOTOR_CONTROL_POSITION = 0
-MOTOR_CONTROL_VELOCITY = 1
-MOTOR_CONTROL_DISPLACEMENT = 2
-
-fpga_id = 4 # TODO: retrieve id automatically
-last_known_left_motor_position = LEFT_MOTOR_INIT_POS
-last_known_right_motor_position = RIGHT_MOTOR_INIT_POS
 
 
-def turn_left_command():
-    command = MotorCommand()
-    command.id = fpga_id
-    command.motors = [LEFT_MOTOR_ID, RIGHT_MOTOR_ID]
-    command.setPoints = [
-        last_known_left_motor_position+LEFT_MOTOR_DELTA_PULL,
-        last_known_right_motor_position+ RIGHT_MOTOR_DELTA_RELEASE
-    ]
-    return command
+desired_angle = None
+current_angle = .0
+
+min_steering_error = 0.1
+
+def get_driving_direction(quaternion):
+    euler = tf.transformations.euler_from_quaternion(quaternion)
+    roll, pitch, yaw = euler
+    rospy.loginfo('Steering orientation: [%s, %s, %s]' % (roll, pitch, yaw))
+    return yaw
 
 
-def turn_right_command():
-    command = MotorCommand()
-    command.id = fpga_id
-    command.motors = [LEFT_MOTOR_ID, RIGHT_MOTOR_ID]
-    command.setPoints = [
-        last_known_left_motor_position+LEFT_MOTOR_DELTA_RELEASE,
-        last_known_right_motor_position+RIGHT_MOTOR_DELTA_PULL
-    ]
-    return command
-
-
-def init_pos_command():
-    command = MotorCommand()
-    command.id = fpga_id
-    command.motors = [LEFT_MOTOR_ID, RIGHT_MOTOR_ID]
-    command.setPoints = [LEFT_MOTOR_INIT_POS, RIGHT_MOTOR_INIT_POS]
-    return command
-
-
-def to_str(command):
-    return 'l=%s,r=%s' % (command.setPoints[0], command.setPoints[1])
+def adjust_trajectory():
+    if desired_angle is None:
+        return None
+    steering_error = current_angle - desired_angle
+    rospy.loginfo('Steering error=%.2f', steering_error)
+    steering_direction = None
+    if steering_error > 0.1:
+        steering_direction = 'right'
+    elif steering_error < -0.1:
+        steering_direction = 'left'
+    return steering_direction
 
 
 def controller():
-    rospy.init_node('steering_controller', anonymous=True)
-    rospy.loginfo('Create motor commands publisher.')
-    fpga_publisher = rospy.Publisher('/roboy/middleware/MotorCommand',
-                                     MotorCommand,
-                                     queue_size=1)
-    rospy.loginfo('Create motor commands service client.')
-    rospy.wait_for_service('/roboy/shoulder_right/middleware/ControlMode')
-    # Set steering in init_position
-    set_control_mode = rospy.ServiceProxy('/roboy/shoulder_right/middleware/ControlMode',
-                                          ControlMode)
-    set_control_mode(MOTOR_CONTROL_POSITION, DUMMY_INIT_POS)
-    rospy.loginfo('Reset motor to initial position.')
-    fpga_publisher.publish(init_pos_command())
-
-    def process_steering_commands(data):
-        if data.data == 'left':
-            command = turn_left_command()
-            rospy.loginfo('Turn left to %s' % to_str(command))
-        elif data.data == 'right':
-            command = turn_right_command()
-            rospy.loginfo('Turn right to %s' % to_str(command))
-        elif data.data == 'reset':
-            rospy.loginfo('Reset to default steering position.')
-            command = init_pos_command()
-        else:
-            rospy.logerror('Unknown command received %s', data.data)
-            return
-        fpga_publisher.publish(command)
-
-    def process_motor_status_info(data):
-        global last_known_left_motor_position
-        global last_known_right_motor_position
-        last_known_left_motor_position = data.position[LEFT_MOTOR_ID]
-        last_known_right_motor_position = data.position[RIGHT_MOTOR_ID]
-
-    rospy.Subscriber('/roboy/middleware/MotorStatus', MotorStatus, process_motor_status_info)
-    rospy.Subscriber('robike/steering', String, process_steering_commands)
-    rospy.spin()
+    rospy.init_node('driving_controller', anonymous=True)
+    steering_controller = rospy.Publisher('/robike/steering', String, queue_size=1)
+    steering_transform = tf.TransformListener()
+    rate = rospy.Rate(4)
+    while not rospy.is_shutdown():
+        try:
+            global current_angle
+            global desired_angle
+            _, rot = steering_transform.lookupTransform('map', 'camera_link', rospy.Time(0))
+            current_angle = get_driving_direction(rot)
+            if desired_angle is None:
+                desired_angle = current_angle
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+            rospy.logerr(e)
+        steering_direction = adjust_trajectory()
+        if steering_direction:
+            rospy.loginfo(steering_direction)
+            steering_controller.publish(steering_direction)
+        rate.sleep()
 
 if __name__ == '__main__':
     controller()
